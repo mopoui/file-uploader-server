@@ -1865,6 +1865,19 @@ def preview_file(filename):
         return send_file(file_path)
     return jsonify({'error': 'Fichier non trouvé'}), 404
 
+import os
+import shutil
+from flask import Flask, request, jsonify
+
+UPLOAD_FOLDER = 'uploads'  # à adapter selon ton projet
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+app = Flask(__name__)
+
+def add_to_history(action, filename, size, ip):
+    # Fonction de log simplifiée
+    print(f"[{action}] {filename} ({size} bytes) from {ip}")
+
 @app.route('/api/delete/<path:filename>', methods=['DELETE'])
 def delete_file(filename):
     try:
@@ -1872,12 +1885,18 @@ def delete_file(filename):
         if os.path.exists(file_path):
             if os.path.isdir(file_path):
                 shutil.rmtree(file_path)
+                size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, filenames in os.walk(file_path) for f in filenames)
             else:
+                size = os.path.getsize(file_path)
                 os.remove(file_path)
             
-            add_to_history('delete', filename, 0, request.remote_addr)
-            return jsonify({'success': True})
+            add_to_history('delete', filename, size, request.remote_addr)
+            return jsonify({'success': True, 'message': f"'{filename}' supprimé avec succès"})
         else:
-            return jsonify({'success': False, 'error': 'Fichier non trouvé'})
+            return jsonify({'success': False, 'error': 'Fichier ou dossier non trouvé'}), 404
     except Exception as e:
-        return jsonify({'success': False,
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
